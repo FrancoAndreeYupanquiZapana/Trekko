@@ -1,4 +1,4 @@
-import { crearApp } from "./app.js";
+import { crearApp } from "./aplicacion.js";
 import { entorno, validarEntorno } from "./config/entorno.js";
 
 /**

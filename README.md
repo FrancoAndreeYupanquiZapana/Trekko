@@ -104,12 +104,22 @@ nada). También se puede probar en el navegador con
   **nunca tocan la clave de Gemini**: la piden al backend. En Vercel solo
   configura `NEXT_PUBLIC_API_URL` (tu API desplegada).
 - **API (backend)** → dos caminos:
-  - **Vercel (serverless)**: funciona gracias a la **caché persistente de
-    paquetes en Supabase Storage** (`utilidades/cachePaquete.ts`): aunque cada
-    request caiga en una instancia nueva, el paquete pesado se genera una sola
-    vez por `revision` y luego se sirve desde Storage al instante. Necesita un
-    pequeño adaptador (`api/index.ts`) que exporte `crearApp()` en vez de
-    `listen()`, y `maxDuration` ampliado (60–300 s) en `/paquete-app`.
+  - **Vercel (serverless)**: usa el soporte **zero-config de Express**: Vercel
+    detecta `app_web/backend/src/server.ts` (importa `express` y hace
+    `export default app`) y empaqueta toda la API en una sola Vercel Function.
+    Pasos:
+    1. En Vercel, **Root Directory** = `app_web/backend`.
+    2. Define las variables de entorno (`SUPABASE_URL`,
+       `SUPABASE_SERVICE_ROLE_KEY`; opcional `GEMINI_API_KEY`, `GEMINI_MODELO`).
+    3. No hace falta build command ni output directory (Vercel transpila el
+       TypeScript por su cuenta).
+    La caché persistente de paquetes en Supabase Storage
+    (`utilidades/cachePaquete.ts`) evita regenerar el paquete pesado cuando cae
+    en una instancia nueva. `vercel.json` sube `maxDuration` a 60 s y memoria a
+    1024 MB para `/paquete-app` (en plan Pro se puede subir hasta 300 s).
+    > `src/index.ts` (con `app.listen()`) se mantiene solo para desarrollo
+    > local; `src/aplicacion.ts` contiene la fábrica `crearApp()` y se llama así
+    > para no chocar con los nombres de entrypoint que Vercel reconoce.
   - **Render / Railway** (servidor persistente): más simple para el endpoint
     pesado de imágenes, porque la caché en memoria sobrevive entre requests.
 - **App móvil** → instalar `expo-sqlite`/módulos con `npx expo install`.
