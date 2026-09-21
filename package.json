@@ -1,0 +1,21 @@
+{
+  "name": "trekko",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@10.13.1",
+  "scripts": {
+    "dev": "pnpm --parallel --filter trekko-backend --filter trekko-frontend dev",
+    "dev:backend": "pnpm --filter trekko-backend dev",
+    "dev:frontend": "pnpm --filter trekko-frontend dev",
+    "dev:app": "pnpm --filter trekko-app start",
+    "build": "pnpm --filter trekko-frontend build",
+    "tipo": "pnpm --filter trekko-backend tipo && pnpm --filter trekko-frontend tipo && pnpm --filter trekko-app tipo",
+    "lint": "pnpm --filter trekko-frontend lint"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "unrs-resolver"
+    ]
+  }
+}

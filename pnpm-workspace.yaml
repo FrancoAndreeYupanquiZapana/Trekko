@@ -1,0 +1,4 @@
+packages:
+  - "app_web/backend"
+  - "app_web/frontend"
+  - "app_movile"

@@ -1,0 +1,32 @@
+# Dependencias
+node_modules/
+
+# Next.js
+.next/
+out/
+
+# Compilación
+dist/
+build/
+
+# Variables de entorno (nunca deben subirse)
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+
+# pnpm
+.pnpm-debug.log*
+
+# Sistema operativo / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Expo (app móvil futura)
+.expo/
+web-build/
