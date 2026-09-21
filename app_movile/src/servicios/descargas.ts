@@ -319,11 +319,15 @@ export interface AvisoPunto {
   imagen: ImagenPaquete | null;
 }
 
-/** Resuelve el contenido vinculado (afiche o especie) de un punto. */
+/**
+ * Resuelve el contenido vinculado (afiche o especie) de un punto.
+ * Devuelve null cuando el punto NO trae contenido vinculado (por ejemplo
+ * un punto tipo NOTA, o un afiche/especie cuya referencia no existe).
+ */
 function resolverContenidoDePunto(
   paquete: PaqueteLugar,
   punto: PuntoPaquete
-): { titulo?: string; descripcion?: string; imagen?: ImagenPaquete | null } {
+): { titulo?: string; descripcion?: string; imagen?: ImagenPaquete | null } | null {
   if (punto.tipo === "AFICHE") {
     const afiche = (paquete.afiches ?? []).find((a) => a.id === punto.aficheId);
     if (afiche) {
@@ -346,7 +350,7 @@ function resolverContenidoDePunto(
       };
     }
   }
-  return {};
+  return null;
 }
 
 /**
@@ -368,6 +372,10 @@ export async function listarPuntosLocales(
       // Paquetes v5 (sin puntos) se ignoran sin romper la app.
       for (const punto of paquete.puntos ?? []) {
         const vinculado = resolverContenidoDePunto(paquete, punto);
+        // Regla del aviso: solo salta el popup si el punto tiene contenido
+        // vinculado (afiche informativo o especie/fauna). Un punto sin
+        // contenido vinculado (NOTA, o referencia vacía) NO debe avisar.
+        if (!vinculado) continue;
         resultado.push({
           id: punto.id,
           lugarId: fila.lugar_id,
