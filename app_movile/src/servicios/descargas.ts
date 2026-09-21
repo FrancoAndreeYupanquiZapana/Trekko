@@ -320,6 +320,11 @@ export interface AvisoPunto {
    * empresa); si no, la del contenido vinculado (afiche o especie).
    */
   imagen: ImagenPaquete | null;
+  /**
+   * Dato complementario para especies: nombre científico y estado de
+   * conservación (ej. "Opisthocomus hoazin · Preocupación menor").
+   */
+  detalle: string;
 }
 
 /**
@@ -330,7 +335,12 @@ export interface AvisoPunto {
 function resolverContenidoDePunto(
   paquete: PaqueteLugar,
   punto: PuntoPaquete
-): { titulo?: string; descripcion?: string; imagen?: ImagenPaquete | null } | null {
+): {
+  titulo?: string;
+  descripcion?: string;
+  detalle?: string;
+  imagen?: ImagenPaquete | null;
+} | null {
   if (punto.tipo === "AFICHE") {
     const afiche = (paquete.afiches ?? []).find((a) => a.id === punto.aficheId);
     if (afiche) {
@@ -349,6 +359,10 @@ function resolverContenidoDePunto(
       return {
         titulo: especie.nombreComun,
         descripcion: especie.descripcion,
+        // Ficha del animal: nombre científico y estado de conservación.
+        detalle: [especie.nombreCientifico, especie.estadoConservacion]
+          .filter(Boolean)
+          .join(" · "),
         imagen: especie.imagen,
       };
     }
@@ -389,6 +403,7 @@ export async function listarPuntosLocales(
           tipo: punto.tipo,
           titulo: vinculado.titulo || punto.titulo || "Punto de interés",
           descripcion: vinculado.descripcion || punto.descripcion || "",
+          detalle: vinculado.detalle ?? "",
           // La imagen «propia» del punto (subida por la empresa en el portal)
           // gana sobre la del contenido vinculado.
           imagen: punto.imagen ?? vinculado.imagen ?? null,

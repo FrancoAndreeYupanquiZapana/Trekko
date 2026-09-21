@@ -279,26 +279,41 @@ export function FormularioPunto({
             </select>
           )}
 
-          {aficheElegido?.imagenUrl && (
-            <div className="mt-2">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={aficheElegido.imagenUrl}
-                alt={`Imagen del afiche «${aficheElegido.titulo}»`}
-                className="h-44 w-full rounded-xl border border-zinc-200 bg-zinc-50 object-contain"
-              />
-              <p className="mt-1.5 text-xs text-zinc-400">
-                El aviso del celular mostrará esta imagen del afiche, salvo que
-                subas una «imagen propia» más abajo.
+          {aficheElegido && (
+            <div className="mt-2 rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700">
+                Se vinculará al punto
+              </p>
+              <div className="mt-2 flex items-start gap-3">
+                {aficheElegido.imagenUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={aficheElegido.imagenUrl}
+                    alt={`Imagen del afiche «${aficheElegido.titulo}»`}
+                    className="h-24 w-24 shrink-0 rounded-xl border border-zinc-200 bg-white object-cover"
+                  />
+                ) : (
+                  <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-xl border border-dashed border-zinc-300 bg-white text-zinc-400">
+                    <Icono tipo="imagen" className="size-7" />
+                  </div>
+                )}
+                <div className="min-w-0">
+                  <p className="font-bold text-zinc-900">
+                    {aficheElegido.titulo}
+                  </p>
+                  <p className="mt-1.5 line-clamp-3 text-sm leading-snug text-zinc-600">
+                    {aficheElegido.descripcion ||
+                      "Este afiche todavía no tiene descripción."}
+                  </p>
+                </div>
+              </div>
+              <p className="mt-3 text-xs text-zinc-500">
+                El turista verá esta imagen y este texto en el aviso al
+                acercarse.
+                {!aficheElegido.imagenUrl &&
+                  " El afiche aún no tiene foto: agrégale una en la sección Afiches o usa la «imagen propia» de abajo."}
               </p>
             </div>
-          )}
-
-          {aficheElegido && !aficheElegido.imagenUrl && (
-            <p className="mt-1.5 text-xs text-amber-600">
-              Este afiche todavía no tiene imagen. Agrégale una en la sección
-              Afiches o sube una «imagen propia» más abajo.
-            </p>
           )}
         </div>
       )}
@@ -325,26 +340,51 @@ export function FormularioPunto({
             </select>
           )}
 
-          {especieElegida?.imagenUrl && (
-            <div className="mt-2">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={especieElegida.imagenUrl}
-                alt={`Foto de ${especieElegida.nombreComun}`}
-                className="h-44 w-full rounded-xl border border-zinc-200 bg-zinc-50 object-contain"
-              />
-              <p className="mt-1.5 text-xs text-zinc-400">
-                Al acercarse, el aviso mostrará esta foto de la especie (la de
-                Flora y fauna), salvo que subas una «imagen propia» más abajo.
+          {especieElegida && (
+            <div className="mt-2 rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700">
+                Se vinculará al punto
+              </p>
+              <div className="mt-2 flex items-start gap-3">
+                {especieElegida.imagenUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={especieElegida.imagenUrl}
+                    alt={`Foto de ${especieElegida.nombreComun}`}
+                    className="h-24 w-24 shrink-0 rounded-xl border border-zinc-200 bg-white object-cover"
+                  />
+                ) : (
+                  <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-xl border border-dashed border-zinc-300 bg-white text-zinc-400">
+                    <Icono tipo="imagen" className="size-7" />
+                  </div>
+                )}
+                <div className="min-w-0">
+                  <p className="font-bold text-zinc-900">
+                    {especieElegida.nombreComun}
+                  </p>
+                  {especieElegida.nombreCientifico && (
+                    <p className="text-xs italic text-zinc-500">
+                      {especieElegida.nombreCientifico}
+                    </p>
+                  )}
+                  {especieElegida.estadoConservacion && (
+                    <p className="mt-1 inline-block rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-800">
+                      {especieElegida.estadoConservacion}
+                    </p>
+                  )}
+                  <p className="mt-1.5 line-clamp-3 text-sm leading-snug text-zinc-600">
+                    {especieElegida.descripcion ||
+                      "Esta especie todavía no tiene descripción."}
+                  </p>
+                </div>
+              </div>
+              <p className="mt-3 text-xs text-zinc-500">
+                El turista verá esta imagen y este resumen en el aviso al
+                acercarse.
+                {!especieElegida.imagenUrl &&
+                  " La especie aún no tiene foto: agrégale una en Flora y fauna o usa la «imagen propia» de abajo."}
               </p>
             </div>
-          )}
-
-          {especieElegida && !especieElegida.imagenUrl && (
-            <p className="mt-1.5 text-xs text-amber-600">
-              Esta especie todavía no tiene foto. Agrégale una en Flora y fauna
-              o sube una «imagen propia» más abajo para el aviso.
-            </p>
           )}
         </div>
       )}
@@ -385,7 +425,7 @@ export function FormularioPunto({
         </span>
         <p className="text-xs text-zinc-400">
           {tipo === "AFICHE" || tipo === "ESPECIE"
-            ? "Si subes una imagen, será la que muestre el aviso del celular al acercarse (por ejemplo una foto del árbol o del cartel), en lugar de la del contenido vinculado."
+            ? "Si subes una imagen, será la que muestre el aviso del celular al acercarse (por ejemplo una foto del animal, del árbol o del cartel), en lugar de la del contenido vinculado."
             : "Si subes una imagen, será la que muestre el aviso del celular al acercarse a este punto."}
         </p>
         <div className="mt-2 flex items-center gap-4">

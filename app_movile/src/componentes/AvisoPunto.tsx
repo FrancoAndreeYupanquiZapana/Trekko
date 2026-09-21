@@ -99,6 +99,9 @@ export default function AvisoPunto({ punto, onCerrar }: Props) {
                 ) : null}
 
                 <Text style={styles.titulo}>{punto.titulo}</Text>
+                {punto.detalle ? (
+                  <Text style={styles.detalle}>{punto.detalle}</Text>
+                ) : null}
                 {punto.descripcion ? (
                   <Text style={styles.descripcion}>{punto.descripcion}</Text>
                 ) : null}
@@ -159,6 +162,12 @@ const styles = StyleSheet.create({
     backgroundColor: "#E8EFE9",
   },
   titulo: { fontSize: 20, fontWeight: "800", color: "#111" },
+  detalle: {
+    fontSize: 13,
+    fontStyle: "italic",
+    fontWeight: "600",
+    color: "#3D6B5A",
+  },
   descripcion: { fontSize: 15, lineHeight: 22, color: "#444" },
   lugar: {
     flexDirection: "row",
