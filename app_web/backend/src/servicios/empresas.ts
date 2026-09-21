@@ -4,8 +4,10 @@ import type {
   DetalleLugarPublico,
   Especie,
   PerfilEmpresa,
+  PuntoInteres,
   Relato,
   TipoEspecie,
+  TipoPunto,
   TipoRelato,
 } from "../tipos/index.js";
 import {
@@ -21,6 +23,7 @@ import {
 import { listarEspeciesDeEmpresa } from "./especies.js";
 import { listarRelatosDeEmpresa } from "./relatos.js";
 import { listarAfichesDeEmpresa } from "./afiches.js";
+import { listarPuntosDeEmpresa } from "./puntos.js";
 
 /**
  * Servicio de perfiles de empresa.
@@ -168,13 +171,14 @@ export async function obtenerDetalleLugar(
   const empresa = await obtenerEmpresaPorId(id);
   if (!empresa) return null;
 
-  const [especies, relatos, afiches, revisionLugar] = await Promise.all([
+  const [especies, relatos, afiches, puntos, revisionLugar] = await Promise.all([
     listarEspeciesDeEmpresa(empresa.usuarioId),
     listarRelatosSiDisponibles(empresa.usuarioId),
     listarAfichesSiDisponibles(empresa.usuarioId),
+    listarPuntosSiDisponibles(empresa.usuarioId),
     calcularRevisionLugar(empresa.usuarioId),
   ]);
-  return { empresa, especies, relatos, afiches, revisionLugar };
+  return { empresa, especies, relatos, afiches, puntos, revisionLugar };
 }
 
 /** Indica si el error es de una tabla que aún no existe (migración pendiente). */
@@ -216,6 +220,22 @@ async function listarAfichesSiDisponibles(empresaId: string): Promise<Afiche[]> 
   }
 }
 
+/**
+ * Lista los puntos del lugar sin tumbar la página pública si la tabla
+ * public.puntos aún no se ha creado (migración 007 pendiente en Supabase).
+ * En ese caso devuelve una lista vacía; los puntos aparecen al migrar.
+ */
+async function listarPuntosSiDisponibles(
+  empresaId: string
+): Promise<PuntoInteres[]> {
+  try {
+    return await listarPuntosDeEmpresa(empresaId);
+  } catch (causa) {
+    if (esTablaInexistente(causa)) return [];
+    throw causa;
+  }
+}
+
 /** Paquete descargable para la app móvil ("Descargar información para Trekko"). */
 export interface PaqueteDescargaEmpresa {
   version: number;
@@ -236,22 +256,25 @@ export interface PaqueteDescargaEmpresa {
   relatos: Relato[];
   /** Afiches informativos: reglas, seguridad y especies protegidas. */
   afiches: Afiche[];
+  /** Puntos geolocalizados que muestran un aviso al acercarse. */
+  puntos: PuntoInteres[];
 }
 
 /**
  * Construye el paquete JSON con la información del lugar para la app móvil.
  * Se usa sin conexión: el archivo contiene el perfil, las especies, los
- * relatos y los afiches, y las imágenes se referencian por URL para no
- * inflar el peso.
+ * relatos, los afiches y los puntos, y las imágenes se referencian por URL
+ * para no inflar el peso.
  */
 export function construirPaqueteDescarga(
   empresa: PerfilEmpresa,
   especies: Especie[],
   relatos: Relato[],
-  afiches: Afiche[]
+  afiches: Afiche[],
+  puntos: PuntoInteres[]
 ): PaqueteDescargaEmpresa {
   return {
-    version: 4,
+    version: 5,
     tipo: "empresa",
     empresa: {
       id: empresa.id,
@@ -266,17 +289,18 @@ export function construirPaqueteDescarga(
     especies,
     relatos,
     afiches,
+    puntos,
   };
 }
 
-/* ── Paquete v5 para la app móvil (offline-first) ────────────────────────
+/* ── Paquete v6 para la app móvil (offline-first) ────────────────────────
  * A diferencia del paquete "ligero" de /exportar (que referencia imágenes
  * por URL), este paquete INCORPORA las imágenes ya optimizadas (JPEG base64)
  * para que el turista vea el lugar completo sin conexión. La app lo guarda
  * tal cual en SQLite y usa `revision` para detectar actualizaciones.
  * ──────────────────────────────────────────────────────────────────────── */
 
-/** Empresa dentro del paquete v5. */
+/** Empresa dentro del paquete v6. */
 export interface PaqueteAppEmpresa {
   id: string;
   nombre: string;
@@ -313,7 +337,7 @@ export interface PaqueteAppRelato {
   imagen: ImagenPaquete | null;
 }
 
-/** Afiche dentro del paquete v5. */
+/** Afiche dentro del paquete v6. */
 export interface PaqueteAppAfiche {
   id: string;
   titulo: string;
@@ -322,9 +346,30 @@ export interface PaqueteAppAfiche {
   imagen: ImagenPaquete | null;
 }
 
+/** Punto geolocalizado dentro del paquete v6. */
+export interface PaqueteAppPunto {
+  id: string;
+  /** Coordenadas del punto. */
+  lat: number;
+  lng: number;
+  /** Radio de aviso en metros. */
+  radioM: number;
+  /** AFICHE, ESPECIE o NOTA. */
+  tipo: TipoPunto;
+  /** Afiche vinculado (vacío si no aplica). */
+  aficheId: string;
+  /** Especie vinculada (vacío si no aplica). */
+  especieId: string;
+  /** Título propio o de respaldo. */
+  titulo: string;
+  descripcion: string;
+  imagenUrl: string;
+  imagen: ImagenPaquete | null;
+}
+
 /** Paquete completo de un lugar para la app móvil. */
 export interface PaqueteAppLugar {
-  /** Versión del formato del paquete (5). */
+  /** Versión del formato del paquete (6). */
   version: number;
   /** Identificador del formato. */
   formato: "trekko";
@@ -336,6 +381,7 @@ export interface PaqueteAppLugar {
   especies: PaqueteAppEspecie[];
   relatos: PaqueteAppRelato[];
   afiches: PaqueteAppAfiche[];
+  puntos: PaqueteAppPunto[];
 }
 
 /** Clave única de una imagen dentro del paquete (perfil + URL). */
@@ -392,6 +438,11 @@ function recogerImagenesDelLugar(detalle: DetalleLugarPublico): Array<{
       tareas.push({ url: afiche.imagenUrl, perfil: "afiche" });
     }
   }
+  for (const punto of detalle.puntos) {
+    if (punto.imagenUrl) {
+      tareas.push({ url: punto.imagenUrl, perfil: "afiche" });
+    }
+  }
   return tareas;
 }
 
@@ -403,7 +454,7 @@ function aPaqueteApp(
 ): PaqueteAppLugar {
   const empresa = detalle.empresa;
   return {
-    version: 5,
+    version: 6,
     formato: "trekko",
     generado: new Date().toISOString(),
     revision,
@@ -451,6 +502,31 @@ function aPaqueteApp(
       imagenUrl: afiche.imagenUrl,
       imagen: imagenes.get(claveImagen(afiche.imagenUrl, "afiche")) ?? null,
     })),
+    puntos: detalle.puntos.map((punto) => {
+      // El título visible: el propio del punto o, si no, el del afiche/especie
+      // vinculado (así el aviso en el celular siempre tiene encabezado).
+      const vinculado =
+        punto.tipo === "AFICHE"
+          ? detalle.afiches.find((a) => a.id === punto.aficheId)?.titulo
+          : punto.tipo === "ESPECIE"
+            ? detalle.especies.find((e) => e.id === punto.especieId)?.nombreComun
+            : undefined;
+      return {
+        id: punto.id,
+        lat: punto.lat,
+        lng: punto.lng,
+        radioM: punto.radioM,
+        tipo: punto.tipo,
+        aficheId: punto.aficheId ?? "",
+        especieId: punto.especieId ?? "",
+        titulo: punto.titulo ?? vinculado ?? "Punto de interés",
+        descripcion: punto.descripcion ?? "",
+        imagenUrl: punto.imagenUrl ?? "",
+        imagen: punto.imagenUrl
+          ? (imagenes.get(claveImagen(punto.imagenUrl, "afiche")) ?? null)
+          : null,
+      };
+    }),
   };
 }
 
@@ -465,8 +541,9 @@ const TAMAÑO_MÁXIMO_CACHÉ = 10;
  * compara para saber si hay una actualización nueva disponible.
  */
 async function calcularRevisionLugar(usuarioId: string): Promise<string> {
-  const consultas = (["empresas", "especies", "relatos", "afiches"] as const).map(
-    async (tabla) => {
+  const consultas = (
+    ["empresas", "especies", "relatos", "afiches", "puntos"] as const
+  ).map(async (tabla) => {
       try {
         const columnaId = tabla === "empresas" ? "usuario_id" : "empresa_id";
         const { data } = await obtenerClienteSupabase()

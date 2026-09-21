@@ -151,6 +151,46 @@ export interface DatosAfiche {
   imagenUrl: string;
 }
 
+/** Qué contenido muestra un punto de interés al acercarse. */
+export type TipoPunto = "AFICHE" | "ESPECIE" | "NOTA";
+
+/** Punto geolocalizado del lugar (tabla public.puntos). */
+export interface PuntoInteres {
+  id: string;
+  /** ID del usuario dueño (agencia) del punto. */
+  empresaId: string;
+  /** Latitud marcada en el mapa. */
+  lat: number;
+  /** Longitud marcada en el mapa. */
+  lng: number;
+  /** Radio en metros dentro del cual salta el aviso en el celular. */
+  radioM: number;
+  tipo: TipoPunto;
+  /** Afiche vinculado (cuando tipo = AFICHE). */
+  aficheId?: string;
+  /** Especie vinculada (cuando tipo = ESPECIE). */
+  especieId?: string;
+  /** Título propio (notas). */
+  titulo?: string;
+  /** Texto o advertencia adicional. */
+  descripcion?: string;
+  /** URL de la imagen propia (notas). */
+  imagenUrl?: string;
+}
+
+/** Datos de un punto editables desde el formulario del portal. */
+export interface DatosPunto {
+  lat: number;
+  lng: number;
+  radioM: number;
+  tipo: TipoPunto;
+  aficheId?: string;
+  especieId?: string;
+  titulo?: string;
+  descripcion?: string;
+  imagenUrl?: string;
+}
+
 /** Detalle de un lugar para la página pública /lugar/:id. */
 export interface DetalleLugarPublico {
   empresa: PerfilEmpresa;
@@ -158,6 +198,8 @@ export interface DetalleLugarPublico {
   relatos: Relato[];
   /** Afiches informativos del lugar: reglas, seguridad y especies protegidas. */
   afiches: Afiche[];
+  /** Puntos geolocalizados que muestran un aviso al acercarse. */
+  puntos: PuntoInteres[];
 }
 
 /** Una foto publicada en un paseo (tabla public.paseos). */

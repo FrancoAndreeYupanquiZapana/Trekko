@@ -2,14 +2,16 @@ import type { SQLiteDatabase } from "expo-sqlite";
 import type {
   AfichePaquete,
   EspeciePaquete,
+  ImagenPaquete,
   LugarTarjeta,
   PaqueteLugar,
+  PuntoPaquete,
   RelatoPaquete,
 } from "@/tipos";
 
 /**
  * Capa de persistencia local (SQLite).
- * El paquete v5 de cada lugar se guarda TAL CUAL en una fila (columna json),
+ * El paquete v6 de cada lugar se guarda TAL CUAL en una fila (columna json),
  * tal como lo recomienda app_movile/INTEGRACION-PAQUETE.md.
  */
 
@@ -287,6 +289,96 @@ export async function listarRelatosLocales(
           lugarId: fila.lugar_id,
           lugarNombre: fila.nombre,
           relato,
+        });
+      }
+    } catch {
+      // Paquete corrupto o de otra versión: se ignora y se sigue.
+    }
+  }
+  return resultado;
+}
+
+/**
+ * Punto de interés resuelto para mostrar el aviso al acercarse (offline).
+ * Resuelve el título, la descripción y la imagen del contenido vinculado
+ * (afiche o especie) para que el aviso sea informativo sin conexión.
+ */
+export interface AvisoPunto {
+  id: string;
+  lugarId: string;
+  lugarNombre: string;
+  lat: number;
+  lng: number;
+  /** Radio de aviso en metros. */
+  radioM: number;
+  /** AFICHE, ESPECIE o NOTA. */
+  tipo: string;
+  titulo: string;
+  descripcion: string;
+  /** Imagen incrustada del contenido (o del punto, si es nota). */
+  imagen: ImagenPaquete | null;
+}
+
+/** Resuelve el contenido vinculado (afiche o especie) de un punto. */
+function resolverContenidoDePunto(
+  paquete: PaqueteLugar,
+  punto: PuntoPaquete
+): { titulo?: string; descripcion?: string; imagen?: ImagenPaquete | null } {
+  if (punto.tipo === "AFICHE") {
+    const afiche = (paquete.afiches ?? []).find((a) => a.id === punto.aficheId);
+    if (afiche) {
+      return {
+        titulo: afiche.titulo,
+        descripcion: afiche.descripcion,
+        imagen: afiche.imagen,
+      };
+    }
+  }
+  if (punto.tipo === "ESPECIE") {
+    const especie = (paquete.especies ?? []).find(
+      (e) => e.id === punto.especieId
+    );
+    if (especie) {
+      return {
+        titulo: especie.nombreComun,
+        descripcion: especie.descripcion,
+        imagen: especie.imagen,
+      };
+    }
+  }
+  return {};
+}
+
+/**
+ * Junta los puntos de interés de TODOS los lugares descargados, ya resueltos
+ * para mostrar el aviso automático al acercarse. Funciona sin conexión.
+ */
+export async function listarPuntosLocales(
+  db: SQLiteDatabase
+): Promise<AvisoPunto[]> {
+  const filas = await db.getAllAsync<{
+    lugar_id: string;
+    nombre: string;
+    json: string;
+  }>("SELECT lugar_id, nombre, json FROM paquetes");
+  const resultado: AvisoPunto[] = [];
+  for (const fila of filas) {
+    try {
+      const paquete = JSON.parse(fila.json) as PaqueteLugar;
+      // Paquetes v5 (sin puntos) se ignoran sin romper la app.
+      for (const punto of paquete.puntos ?? []) {
+        const vinculado = resolverContenidoDePunto(paquete, punto);
+        resultado.push({
+          id: punto.id,
+          lugarId: fila.lugar_id,
+          lugarNombre: fila.nombre,
+          lat: Number(punto.lat),
+          lng: Number(punto.lng),
+          radioM: Number(punto.radioM) || 60,
+          tipo: punto.tipo,
+          titulo: vinculado.titulo || punto.titulo || "Punto de interés",
+          descripcion: vinculado.descripcion || punto.descripcion || "",
+          imagen: vinculado.imagen ?? punto.imagen ?? null,
         });
       }
     } catch {

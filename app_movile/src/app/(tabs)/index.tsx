@@ -54,6 +54,27 @@ function normalizarPaquete(texto: string): PaqueteLugar {
   return p as PaqueteLugar;
 }
 
+/**
+ * Lee el texto de un archivo elegido con el selector del sistema.
+ *
+ * En Android el selector suele devolver un URI `content://` al que la API nueva
+ * de `expo-file-system` no siempre puede acceder (error "Missing READ
+ * permission"). `fetch` sí resuelve esos URIs a través del ContentResolver de
+ * Android, así que lo usamos como respaldo.
+ */
+async function leerTextoDeArchivo(uri: string): Promise<string> {
+  try {
+    return await new File(uri).text();
+  } catch (causa) {
+    try {
+      const respuesta = await fetch(uri);
+      return await respuesta.text();
+    } catch {
+      throw causa;
+    }
+  }
+}
+
 /** Logo del lugar: el real si existe; si no, la inicial del nombre. */
 function Logo({ nombre, logoUrl, tamaño }: { nombre: string; logoUrl: string; tamaño: number }) {
   const estilo = {
@@ -196,7 +217,7 @@ export default function Informacion() {
       });
       if (res.canceled || !res.assets?.length) return;
       const asset = res.assets[0];
-      const texto = await new File(asset.uri).text();
+      const texto = await leerTextoDeArchivo(asset.uri);
       const paquete = normalizarPaquete(texto);
       setImportando(true);
       await guardarPaquete(db, paquete);

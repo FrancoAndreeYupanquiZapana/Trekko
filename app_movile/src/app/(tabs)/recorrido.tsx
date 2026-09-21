@@ -3,11 +3,13 @@ import { Image } from "expo-image";
 import { Directory, File, Paths } from "expo-file-system";
 import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
+import { useFocusEffect } from "expo-router";
 import { useSQLiteContext } from "expo-sqlite";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -18,7 +20,13 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import MapaRecorrido from "@/componentes/MapaRecorrido";
-import { listarLugaresLocales, obtenerLugarActivoId } from "@/servicios/descargas";
+import AvisoPunto from "@/componentes/AvisoPunto";
+import {
+  listarLugaresLocales,
+  listarPuntosLocales,
+  obtenerLugarActivoId,
+  type AvisoPunto as AvisoPuntoDatos,
+} from "@/servicios/descargas";
 import {
   actualizarDescripcionPunto,
   agregarPunto,
@@ -29,6 +37,7 @@ import {
   finalizarRecorrido,
   listarPuntos,
   listarRecorridosResumen,
+  obtenerRecorridoActivo,
   type PuntoRecorrido,
   type RecorridoLocal,
   type RecorridoResumen,
@@ -117,6 +126,47 @@ export default function Recorrido() {
   // no guardar puntos cuando el GPS tiembla sin que el turista haya avanzado.
   const anclaRef = useRef<{ lat: number; lng: number; ts: number } | null>(null);
 
+  // Avisos automáticos de puntos de interés (geocercas).
+  const [avisoCercano, setAvisoCercano] = useState<AvisoPuntoDatos | null>(null);
+  const puntosCercanosRef = useRef<AvisoPuntoDatos[]>([]);
+  const dentroRadioRef = useRef<Set<string>>(new Set());
+  const avisoAbiertoRef = useRef(false);
+
+  /** Cierra el aviso y permite que vuelva a salir al reingresar a la zona. */
+  const cerrarAviso = useCallback(() => {
+    avisoAbiertoRef.current = false;
+    setAvisoCercano(null);
+  }, []);
+
+  /**
+   * Revisa si el turista entró en el radio de algún punto de interés.
+   * Solo dispara el aviso al ENTRAR (no en cada reporte del GPS) y evita
+   * tapar otro aviso que ya esté abierto.
+   */
+  const revisarPuntosCercanos = useCallback((lat: number, lng: number) => {
+    const dentro = new Set<string>();
+    for (const punto of puntosCercanosRef.current) {
+      const distancia = distanciaHaversineM(
+        { lat, lng },
+        { lat: punto.lat, lng: punto.lng }
+      );
+      const radio = Math.max(20, punto.radioM);
+      if (distancia > radio) continue;
+      dentro.add(punto.id);
+      const yaEstabaDentro = dentroRadioRef.current.has(punto.id);
+      if (!yaEstabaDentro && !avisoAbiertoRef.current) {
+        avisoAbiertoRef.current = true;
+        setAvisoCercano(punto);
+      }
+    }
+    dentroRadioRef.current = dentro;
+  }, []);
+
+  /** Recarga los puntos descargados (por si el turista bajó un lugar nuevo). */
+  const recargarPuntosCercanos = useCallback(async () => {
+    puntosCercanosRef.current = await listarPuntosLocales(db).catch(() => []);
+  }, [db]);
+
   const recargarHistorial = useCallback(async () => {
     const lista = await listarRecorridosResumen(db).catch(() => []);
     setHistorial(lista);
@@ -160,6 +210,8 @@ export default function Recorrido() {
   const alRecibirPosicion = useCallback(
     (loc: Location.LocationObject) => {
       setPosicion(loc);
+      // Geocercas: el aviso salta aunque no haya un recorrido en curso.
+      revisarPuntosCercanos(loc.coords.latitude, loc.coords.longitude);
       if (activoIdRef.current == null) return;
       const acc = loc.coords.accuracy;
       if (acc != null && acc > 80) return; // precisión demasiado mala
@@ -181,7 +233,7 @@ export default function Recorrido() {
       if (desplazamiento < 15 && desdePunto < 25000) return;
       void guardarPuntoLocal(loc, null);
     },
-    [guardarPuntoLocal]
+    [guardarPuntoLocal, revisarPuntosCercanos]
   );
 
   async function iniciar() {
@@ -227,6 +279,7 @@ export default function Recorrido() {
         accuracy: Location.Accuracy.High,
       });
       setPosicion(actual);
+      revisarPuntosCercanos(actual.coords.latitude, actual.coords.longitude);
       await guardarPuntoLocal(actual, null); // punto inicial
       anclaRef.current = {
         lat: actual.coords.latitude,
@@ -259,20 +312,8 @@ export default function Recorrido() {
     setAviso("Punto registrado ✓");
   }
 
-  async function tomarFotoYPunto() {
-    const cam = await ImagePicker.requestCameraPermissionsAsync();
-    if (!cam.granted) {
-      Alert.alert("Permiso necesario", "Habilita la cámara para capturar tu foto del recorrido.");
-      return;
-    }
-    const res = await ImagePicker.launchCameraAsync({
-      mediaTypes: ["images"],
-      quality: 0.7,
-      exif: true,
-      allowsEditing: false,
-    });
-    if (res.canceled || !res.assets?.length) return;
-    const asset = res.assets[0];
+  /** Guarda la foto recién tomada como punto del recorrido activo. */
+  async function adjuntarCaptura(asset: ImagePicker.ImagePickerAsset) {
     let uri = asset.uri;
     try {
       uri = await guardarFotoComoArchivo(asset.uri);
@@ -288,6 +329,96 @@ export default function Recorrido() {
       setPuntoParaDescripcion(punto);
       setDescripcion("");
       setAviso("Foto guardada con su ubicación. Cuéntanos qué viste.");
+    }
+  }
+
+  /**
+   * Android puede cerrar la app mientras la cámara está abierta (es un
+   * comportamiento documentado de Expo ImagePicker: el sistema puede matar la
+   * MainActivity). Al reabrir, recuperamos la foto perdida con
+   * `getPendingResultAsync` y la pegamos al recorrido que quedó EN_CURSO para
+   * que el turista no pierda nada.
+   */
+  const recuperarCapturaPerdida = useCallback(async () => {
+    if (Platform.OS !== "android") {
+      await cerrarRecorridosAbandonados(db).catch(() => 0);
+      return;
+    }
+
+    let perdida: ImagePicker.ImagePickerResult | null = null;
+    try {
+      const pendiente = await ImagePicker.getPendingResultAsync();
+      if (pendiente && "canceled" in pendiente && !pendiente.canceled) {
+        perdida = pendiente;
+      }
+    } catch {
+      // No había ninguna captura pendiente.
+    }
+
+    const rec = await obtenerRecorridoActivo(db).catch(() => null);
+    const asset = perdida?.assets?.[0];
+
+    if (asset && rec) {
+      try {
+        let uri = asset.uri;
+        try {
+          uri = await guardarFotoComoArchivo(asset.uri);
+        } catch {
+          // Usamos la temporal.
+        }
+        let loc: Location.LocationObject | null = null;
+        try {
+          loc = await Location.getLastKnownPositionAsync();
+        } catch {
+          // Sin última posición conocida.
+        }
+        if (loc) {
+          await agregarPunto(db, rec.id, {
+            lat: loc.coords.latitude,
+            lng: loc.coords.longitude,
+            altitud: loc.coords.altitude,
+            precisionGps: loc.coords.accuracy,
+            velocidad: loc.coords.speed,
+            timestamp: new Date().toISOString(),
+            fotoUri: uri,
+          });
+          setAviso("Recuperamos la foto que se perdió al abrir la cámara ✓");
+        }
+      } catch {
+        // Si algo falla, no rompemos el arranque de la app.
+      }
+    }
+
+    // La sesión de caminata se perdió (la app se reinició), pero la foto
+    // recuperada queda guardada y se ve en la Galería.
+    await cerrarRecorridosAbandonados(db).catch(() => 0);
+  }, [db]);
+
+  async function tomarFotoYPunto() {
+    try {
+      const cam = await ImagePicker.requestCameraPermissionsAsync();
+      if (!cam.granted) {
+        Alert.alert(
+          "Permiso necesario",
+          "Habilita la cámara para capturar tu foto del recorrido."
+        );
+        return;
+      }
+      const res = await ImagePicker.launchCameraAsync({
+        mediaTypes: ["images"],
+        quality: 0.7,
+        allowsEditing: false,
+      });
+      if (res.canceled || !res.assets?.length) return;
+      await adjuntarCaptura(res.assets[0]);
+    } catch (causa) {
+      // Nunca dejamos que un error de cámara cierre la app: lo mostramos.
+      Alert.alert(
+        "No se pudo tomar la foto",
+        causa instanceof Error
+          ? causa.message
+          : "Inténtalo otra vez; tu recorrido sigue guardado."
+      );
     }
   }
 
@@ -340,14 +471,13 @@ export default function Recorrido() {
   useEffect(() => {
     let activo = true;
     void (async () => {
-      const [lugaresLocales, abandonados, lugarActivoId] = await Promise.all([
+      // Antes que nada: si Android reinició la app al abrir la cámara,
+      // recuperamos la foto perdida para que no se pierda.
+      await recuperarCapturaPerdida();
+      const [lugaresLocales, lugarActivoId] = await Promise.all([
         listarLugaresLocales(db).catch(() => []),
-        cerrarRecorridosAbandonados(db).catch(() => 0),
         obtenerLugarActivoId(db).catch(() => null),
       ]);
-      if (abandonados > 0) {
-        // Un recorrido anterior se cerró solo (por ejemplo, al cerrar la app).
-      }
       if (activo && lugarActivoId) {
         const lugarActivo = lugaresLocales.find((l) => l.id === lugarActivoId);
         if (lugarActivo) setLugarSel(lugarActivo);
@@ -359,7 +489,33 @@ export default function Recorrido() {
       activo = false;
       suscripcionRef.current?.remove();
     };
-  }, [db]);
+  }, [db, recuperarCapturaPerdida]);
+
+  /**
+   * Al volver a esta pestaña: recargar los puntos descargados y ofrecer el
+   * aviso si el turista ya está dentro de una zona, sin iniciar un recorrido.
+   */
+  useFocusEffect(
+    useCallback(() => {
+      let vivo = true;
+      void (async () => {
+        await recargarPuntosCercanos();
+        if (!vivo) return;
+        const ultima = await Location.getLastKnownPositionAsync().catch(
+          () => null
+        );
+        if (vivo && ultima) {
+          revisarPuntosCercanos(
+            ultima.coords.latitude,
+            ultima.coords.longitude
+          );
+        }
+      })();
+      return () => {
+        vivo = false;
+      };
+    }, [recargarPuntosCercanos, revisarPuntosCercanos])
+  );
 
   const distancia = distanciaDePuntosM(puntos);
   const fotosRecorrido = puntos.filter((p) => p.fotoUri).length;
@@ -595,6 +751,9 @@ export default function Recorrido() {
           )}
         </View>
       </ScrollView>
+
+      {/* Aviso automático al acercarse a un punto de interés marcado. */}
+      <AvisoPunto punto={avisoCercano} onCerrar={cerrarAviso} />
     </SafeAreaView>
   );
 }

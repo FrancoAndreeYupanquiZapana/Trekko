@@ -1,6 +1,6 @@
 /**
  * Tipos de la app móvil de Trekko.
- * Espejo del contrato del backend (paquete v5 y detalle público).
+ * Espejo del contrato del backend (paquete v6 y detalle público).
  */
 
 /** Lugar tal como aparece en el catálogo del home (GET /api/empresas). */
@@ -60,7 +60,7 @@ export interface RelatoPaquete {
   imagen: ImagenPaquete | null;
 }
 
-/** Afiche informativo dentro del paquete v5. */
+/** Afiche informativo dentro del paquete v6. */
 export interface AfichePaquete {
   id: string;
   titulo: string;
@@ -69,12 +69,33 @@ export interface AfichePaquete {
   imagen: ImagenPaquete | null;
 }
 
+/** Punto geolocalizado dentro del paquete v6. */
+export interface PuntoPaquete {
+  id: string;
+  /** Coordenadas del punto. */
+  lat: number;
+  lng: number;
+  /** Radio de aviso en metros. */
+  radioM: number;
+  /** AFICHE, ESPECIE o NOTA. */
+  tipo: string;
+  /** Afiche vinculado (vacío si no aplica). */
+  aficheId: string;
+  /** Especie vinculada (vacío si no aplica). */
+  especieId: string;
+  /** Título propio o de respaldo. */
+  titulo: string;
+  descripcion: string;
+  imagenUrl: string;
+  imagen: ImagenPaquete | null;
+}
+
 /**
- * Paquete v5 completo descargado de /api/empresas/:id/paquete-app.
+ * Paquete v6 completo descargado de /api/empresas/:id/paquete-app.
  * Se guarda tal cual (JSON.stringify) en SQLite.
  */
 export interface PaqueteLugar {
-  /** Versión del formato del paquete (5). */
+  /** Versión del formato del paquete (6). */
   version: number;
   formato: "trekko";
   /** Fecha ISO de generación. */
@@ -85,6 +106,7 @@ export interface PaqueteLugar {
   especies: EspeciePaquete[];
   relatos: RelatoPaquete[];
   afiches: AfichePaquete[];
+  puntos: PuntoPaquete[];
 }
 
 /** Detalle público remoto (GET /api/empresas/:id) para vista previa y revisiones. */
@@ -93,6 +115,8 @@ export interface DetalleRemoto {
   especies: EspeciePaquete[];
   relatos: RelatoPaquete[];
   afiches: AfichePaquete[];
+  /** Puntos geolocalizados del lugar. */
+  puntos: PuntoPaquete[];
   /** Revisión remota: se compara contra la del paquete local. */
   revisionLugar: string;
 }

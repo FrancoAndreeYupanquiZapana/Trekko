@@ -7,6 +7,13 @@
     "icon": "./assets/images/trekko-logo.png",
     "scheme": "trekko",
     "userInterfaceStyle": "automatic",
+    "autolinking": {
+      "exclude": [
+        "react-native-worklets",
+        "react-native-reanimated",
+        "react-native-gesture-handler"
+      ]
+    },
     "ios": {
       "icon": "./assets/expo.icon"
     },

@@ -22,13 +22,17 @@ export interface ResultadoSincronizacion {
   fallidos: number;
   /** URL pública del último envío subido, si hubo. */
   urlPublica: string | null;
+  /** Primer error concreto, para mostrárselo al turista (o null). */
+  primerError: string | null;
 }
 
 /** URL de la página pública del turista (web). */
 export function urlPaginaPublica(dni: string): string {
+  const configurada = process.env.EXPO_PUBLIC_WEB_URL?.trim();
   const base =
-    process.env.EXPO_PUBLIC_WEB_URL ??
-    URL_API.replace(/\/api\/?$/, "").replace(/:4000\b/, ":3000");
+    configurada && configurada.length > 0
+      ? configurada.replace(/\/+$/, "")
+      : URL_API.replace(/\/api\/?$/, "").replace(/:4000\b/, ":3000");
   return `${base}/paseo/${encodeURIComponent(dni)}`;
 }
 
@@ -59,6 +63,21 @@ export async function contarEnviosPendientes(db: SQLiteDatabase): Promise<number
   return fila?.total ?? 0;
 }
 
+/** Traduce un error de subida a un mensaje claro para el turista. */
+function describirError(causa: unknown): string {
+  const bruto =
+    causa instanceof Error ? causa.message : "No se pudo subir el envío.";
+  // Errores típicos de red (sin conexión, host inalcanzable, timeout).
+  if (
+    /network request failed|failed to fetch|aborted|timeout|socket|econnrefused|enetunreach|network is unreachable/i.test(
+      bruto
+    )
+  ) {
+    return `No se pudo conectar con el servidor (${URL_API}). Revisa tu conexión a internet e inténtalo de nuevo.`;
+  }
+  return bruto;
+}
+
 /**
  * Sube todos los envíos pendientes o fallidos.
  * Devuelve un resumen; nunca lanza por un envío que falle.
@@ -75,6 +94,7 @@ export async function sincronizarEnviosGaleria(
     subidos: 0,
     fallidos: 0,
     urlPublica: null,
+    primerError: null,
   };
 
   for (const envio of envios) {
@@ -119,9 +139,9 @@ export async function sincronizarEnviosGaleria(
       resultado.subidos += 1;
       resultado.urlPublica = url;
     } catch (causa) {
-      const mensaje =
-        causa instanceof Error ? causa.message : "No se pudo subir el envío.";
+      const mensaje = describirError(causa);
       await marcarEnvio(db, envio.id, "ERROR", null, mensaje);
+      if (!resultado.primerError) resultado.primerError = mensaje;
       resultado.fallidos += 1;
     }
   }

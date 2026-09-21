@@ -87,7 +87,8 @@ export async function descargarEmpresaPublica(
       detalle.empresa,
       detalle.especies,
       detalle.relatos,
-      detalle.afiches
+      detalle.afiches,
+      detalle.puntos
     );
     respuesta.status(200).json(exito(paquete, "Paquete generado."));
   } catch (causa) {

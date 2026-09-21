@@ -36,10 +36,10 @@ interface Modulo {
 const modulos: Modulo[] = [
   {
     icono: "ubicacion",
-    titulo: "Crear destino",
+    titulo: "Puntos de interés",
     descripcion:
-      "Delimita tu destino en el mapa: coloca puntos y etiquétalos (cabaña, avistamiento, mirador, laguna).",
-    proximamente: true,
+      "Marca puntos en el mapa y muéstrales un afiche, una especie o una advertencia cuando pasen cerca.",
+    href: "/empresa/puntos",
   },
   {
     icono: "hoja",

@@ -2,7 +2,13 @@ import Link from "next/link";
 
 interface Props {
   /** Página activa del portal de la agencia. */
-  paginaActiva: "panel" | "perfil" | "especies" | "relatos" | "afiches";
+  paginaActiva:
+    | "panel"
+    | "perfil"
+    | "especies"
+    | "relatos"
+    | "afiches"
+    | "puntos";
 }
 
 const enlaces = [
@@ -11,6 +17,7 @@ const enlaces = [
   { clave: "especies", href: "/empresa/especies", etiqueta: "Flora y fauna" },
   { clave: "relatos", href: "/empresa/relatos", etiqueta: "Relatos locales" },
   { clave: "afiches", href: "/empresa/afiches", etiqueta: "Afiches" },
+  { clave: "puntos", href: "/empresa/puntos", etiqueta: "Puntos de interés" },
 ] as const;
 
 /** Subnavegación del portal de la agencia (panel y perfil). */

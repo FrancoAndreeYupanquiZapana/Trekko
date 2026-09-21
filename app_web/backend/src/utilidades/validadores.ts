@@ -35,6 +35,12 @@ const urlOpcional = z.preprocess(
   z.string().trim().url("Debe ser una URL válida.").max(500, "La URL es demasiado larga.").optional()
 );
 
+/** UUID opcional: campo vacío o identificador válido. */
+const uuidOpcional = z.preprocess(
+  (valor) => (typeof valor === "string" && valor.trim() === "" ? undefined : valor),
+  z.string().uuid("Identificador inválido.").optional()
+);
+
 /** Datos del perfil de empresa editables desde el portal. */
 export const esquemaPerfilEmpresa = z.object({
   /** Nombre del lugar o establecimiento. */
@@ -125,6 +131,63 @@ export const esquemaAfiche = z.object({
     .url("Debe ser una URL válida.")
     .max(500, "La URL es demasiado larga."),
 });
+
+/**
+ * Datos de un punto de interés geolocalizado. El punto se marca en el mapa y
+ * muestra un afiche, una especie (con su imagen) o una nota/advertencia.
+ */
+export const esquemaPunto = z
+  .object({
+    /** Latitud marcada en el mapa. */
+    lat: z
+      .number({ invalid_type_error: "Selecciona un punto en el mapa." })
+      .min(-90, "La latitud no es válida.")
+      .max(90, "La latitud no es válida."),
+    /** Longitud marcada en el mapa. */
+    lng: z
+      .number({ invalid_type_error: "Selecciona un punto en el mapa." })
+      .min(-180, "La longitud no es válida.")
+      .max(180, "La longitud no es válida."),
+    /** Radio de aviso en metros (10 a 2000). */
+    radioM: z.number().int().min(10).max(2000).optional().default(60),
+    /** AFICHE, ESPECIE o NOTA. */
+    tipo: z.enum(["AFICHE", "ESPECIE", "NOTA"], {
+      errorMap: () => ({ message: "Elige qué mostrará el punto." }),
+    }),
+    /** Afiche vinculado (obligatorio si tipo = AFICHE). */
+    aficheId: uuidOpcional,
+    /** Especie vinculada (obligatoria si tipo = ESPECIE). */
+    especieId: uuidOpcional,
+    /** Título de la nota (obligatorio si tipo = NOTA). */
+    titulo: textoOpcional(200, "El título es demasiado largo."),
+    /** Texto o advertencia adicional. */
+    descripcion: textoOpcional(2000, "La descripción no puede superar los 2000 caracteres."),
+    /** URL de la imagen propia (notas). */
+    imagenUrl: urlOpcional,
+  })
+  .superRefine((datos, ctx) => {
+    if (datos.tipo === "AFICHE" && !datos.aficheId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Elige el afiche que mostrará el punto.",
+        path: ["aficheId"],
+      });
+    }
+    if (datos.tipo === "ESPECIE" && !datos.especieId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Elige la especie que mostrará el punto.",
+        path: ["especieId"],
+      });
+    }
+    if (datos.tipo === "NOTA" && !datos.titulo) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Escribe un título para la nota.",
+        path: ["titulo"],
+      });
+    }
+  });
 
 /** Datos mínimos que el PDF "recuerdo" envía al backend para la frase IA. */
 export const esquemaTextoRecuerdo = z.object({

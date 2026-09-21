@@ -103,6 +103,31 @@ export interface Afiche {
   imagenUrl: string;
 }
 
+/** Qué contenido muestra un punto de interés al acercarse. */
+export type TipoPunto = "AFICHE" | "ESPECIE" | "NOTA";
+
+/** Tabla public.puntos — puntos geolocalizados del lugar. */
+export interface PuntoInteres {
+  id: string;
+  /** ID del usuario dueño (empresa) del punto. */
+  empresaId: string;
+  lat: number;
+  lng: number;
+  /** Radio en metros dentro del cual salta el aviso en el celular. */
+  radioM: number;
+  tipo: TipoPunto;
+  /** Afiche vinculado (cuando tipo = AFICHE). */
+  aficheId?: string;
+  /** Especie vinculada (cuando tipo = ESPECIE). */
+  especieId?: string;
+  /** Título propio (notas o anulación del vinculado). */
+  titulo?: string;
+  /** Descripción o advertencia propia. */
+  descripcion?: string;
+  /** URL de la imagen propia (notas). */
+  imagenUrl?: string;
+}
+
 /** Una foto publicada en un paseo (tabla public.paseos). */
 export interface FotoPaseo {
   /** URL pública de la imagen en Supabase Storage. */
@@ -177,6 +202,8 @@ export interface DetalleLugarPublico {
   relatos: Relato[];
   /** Afiches informativos del lugar: reglas, seguridad y especies protegidas. */
   afiches: Afiche[];
+  /** Puntos geolocalizados que muestran un afiche/especie/nota al acercarse. */
+  puntos: PuntoInteres[];
   /**
    * Revisión del contenido (fecha del último cambio). La app la compara para
    * saber si el paquete descargado quedó desactualizado.

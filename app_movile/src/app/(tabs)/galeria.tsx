@@ -104,16 +104,12 @@ export default function Galeria() {
       sincronizandoRef.current = true;
       setSincronizando(true);
       try {
-        const hay = await hayInternet();
-        if (!hay) {
-          const n = await contarEnviosPendientes(db).catch(() => 0);
-          setPendientes(n);
-          if (mostrarAlerta) {
-            Alert.alert(
-              "Sin conexión",
-              "Tus envíos quedaron guardados y se subirán solos cuando tengas internet."
-            );
-          }
+        // En modo silencioso (al entrar a la pestaña) comprobamos rápido la
+        // conexión para no dejar peticiones colgadas. El botón "Subir" intenta
+        // SIEMPRE: así una red que bloquea Google no impide subir tus fotos,
+        // y si falla, se muestra el mensaje real del servidor.
+        if (!mostrarAlerta && !(await hayInternet())) {
+          setPendientes(await contarEnviosPendientes(db).catch(() => 0));
           return;
         }
         const resultado = await sincronizarEnviosGaleria(db);
@@ -129,7 +125,8 @@ export default function Galeria() {
           } else if (resultado.fallidos > 0) {
             Alert.alert(
               "No se pudo subir",
-              "Revisa tu conexión e inténtalo otra vez. Tus fotos siguen guardadas."
+              `${resultado.primerError ?? "Revisa tu conexión e inténtalo otra vez."}\n\n` +
+                "Tus fotos siguen guardadas y se reintentarán solas."
             );
           } else {
             Alert.alert("Todo al día", "No hay envíos pendientes por subir.");

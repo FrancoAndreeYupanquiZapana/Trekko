@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CalificacionConIA } from "@/componentes/publico/CalificacionConIA";
+import { CompartirPaseo } from "@/componentes/publico/CompartirPaseo";
 import { DescargarRecuerdo } from "@/componentes/publico/DescargarRecuerdo";
 import { MapaPaseo } from "@/componentes/publico/MapaPaseo";
 import { obtenerPaseosPorDniServidor } from "@/servicios/paseosServidor";
@@ -191,6 +192,7 @@ export default async function PaginaPaseo({ params }: Props) {
             )}
           </div>
           <DescargarRecuerdo dni={dni} />
+          <CompartirPaseo dni={dni} nombre={nombre} />
           <CalificacionConIA paseos={paseos} />
         </div>
       </section>

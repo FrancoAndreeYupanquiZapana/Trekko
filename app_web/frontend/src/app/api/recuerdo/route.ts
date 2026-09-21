@@ -1,3 +1,5 @@
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import { PDFDocument, PDFFont, rgb, StandardFonts } from "pdf-lib";
 import { entorno } from "@/config/entorno";
 import type { Paseo } from "@/tipos";
@@ -164,6 +166,20 @@ function envolverTexto(
   return lineas;
 }
 
+/** Logo de Trekko (mismo archivo que usa la app móvil). Se lee una sola vez. */
+let logoCache: Uint8Array | null | undefined;
+async function leerLogoTrekko(): Promise<Uint8Array | null> {
+  if (logoCache !== undefined) return logoCache;
+  try {
+    logoCache = new Uint8Array(
+      await readFile(join(process.cwd(), "public", "trekko-logo.png"))
+    );
+  } catch {
+    logoCache = null;
+  }
+  return logoCache;
+}
+
 /** Baja la imagen y la devuelve lista para incrustar (JPEG o PNG). */
 async function bajarImagenPdf(
   pdf: PDFDocument,
@@ -325,6 +341,36 @@ async function construirPdf(
     `Generado con Trekko · DNI ${dni} · ${new Date().toLocaleDateString("es")}`,
     { x: MARGEN, y: 26, size: 10, font: fuenteTexto, color: GRIS }
   );
+
+  // --- Logo de Trekko en la esquina inferior derecha (promoción) ---
+  const logoBytes = await leerLogoTrekko();
+  if (logoBytes) {
+    try {
+      const logo = await pdf.embedPng(logoBytes);
+      const altoLogo = 30;
+      const anchoLogo = (logo.width / logo.height) * altoLogo;
+      page.drawImage(logo, {
+        x: W - MARGEN - anchoLogo,
+        y: 18,
+        width: anchoLogo,
+        height: altoLogo,
+      });
+      page.drawText("Trekko", {
+        x:
+          W -
+          MARGEN -
+          anchoLogo -
+          8 -
+          fuenteTitulo.widthOfTextAtSize("Trekko", 10),
+        y: 27,
+        size: 10,
+        font: fuenteTitulo,
+        color: EMERALDE,
+      });
+    } catch {
+      // Si el logo no se puede incrustar, el recuerdo se genera igual.
+    }
+  }
 
   return pdf.save();
 }

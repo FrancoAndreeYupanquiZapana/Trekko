@@ -27,12 +27,24 @@ export async function pedirApi<T>(ruta: string): Promise<T> {
  */
 export async function enviarFormData<T>(
   ruta: string,
-  datos: FormData
+  datos: FormData,
+  timeoutMs = 45000
 ): Promise<T> {
-  const respuesta = await fetch(`${URL_API}${ruta}`, {
-    method: "POST",
-    body: datos,
-  });
+  // Sin timeout, una red que "traga" la petición deja el botón de subir
+  // girando para siempre. Si se pasa el tiempo, abortamos y se reintenta.
+  const control = new AbortController();
+  const temporizador = setTimeout(() => control.abort(), timeoutMs);
+
+  let respuesta: Response;
+  try {
+    respuesta = await fetch(`${URL_API}${ruta}`, {
+      method: "POST",
+      body: datos,
+      signal: control.signal,
+    });
+  } finally {
+    clearTimeout(temporizador);
+  }
 
   const cuerpo = (await respuesta.json().catch(() => null)) as {
     exito: boolean;

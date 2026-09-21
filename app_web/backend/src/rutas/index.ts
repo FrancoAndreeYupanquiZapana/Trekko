@@ -5,6 +5,7 @@ import rutasEmpresas from "./empresas.js";
 import rutasEspecies from "./especies.js";
 import rutasRelatos from "./relatos.js";
 import rutasAfiches from "./afiches.js";
+import rutasPuntos from "./puntos.js";
 import rutasPaseos from "./paseos.js";
 import rutasArchivos from "./archivos.js";
 
@@ -20,6 +21,8 @@ rutasPrincipales.use("/api/empresas", rutasEmpresas);
 rutasPrincipales.use("/api/especies", rutasEspecies);
 rutasPrincipales.use("/api/relatos", rutasRelatos);
 rutasPrincipales.use("/api/afiches", rutasAfiches);
+// Puntos geolocalizados: afiche/especie/nota que salta al acercarse.
+rutasPrincipales.use("/api/puntos", rutasPuntos);
 // Envíos de la galería móvil: fotos + track (página pública "El viaje de X en Y").
 rutasPrincipales.use("/api/paseos", rutasPaseos);
 rutasPrincipales.use("/api/archivos", rutasArchivos);
