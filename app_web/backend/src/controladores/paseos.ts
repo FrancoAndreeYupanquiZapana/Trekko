@@ -1,10 +1,18 @@
 import type { NextFunction, Request, Response } from "express";
 import multer, { MulterError } from "multer";
 import { z } from "zod";
-import { esquemaPaseo, esquemaTextoRecuerdo } from "../utilidades/validadores.js";
+import {
+  esquemaPaseo,
+  esquemaPrepararSubida,
+  esquemaTextoRecuerdo,
+} from "../utilidades/validadores.js";
 import * as servicioPaseos from "../servicios/paseos.js";
 import * as servicioGemini from "../servicios/gemini.js";
-import { subirImagen } from "../servicios/archivos.js";
+import {
+  firmarSubidasPaseo,
+  subirImagen,
+  urlPublicaDeRuta,
+} from "../servicios/archivos.js";
 import { optimizarImagenBuffer } from "../utilidades/imagenes.js";
 import { exito, error } from "../utilidades/respuestas.js";
 import type { FotoPaseo } from "../tipos/index.js";
@@ -13,8 +21,10 @@ import type { FotoPaseo } from "../tipos/index.js";
  * Controladores de paseos (envíos de la galería móvil).
  * Solo orquestan: validar entrada -> subir fotos -> llamar servicio -> responder.
  *
- * El POST es multipart: un campo `datos` (JSON) + hasta 5 archivos `fotos`.
- * Las fotos se suben a Supabase Storage y se guardan como URLs públicas.
+ * El POST acepta DOS flujos:
+ *  - Multipart (servidor local): campo `datos` (JSON) + hasta 5 archivos `fotos`.
+ *  - JSON (Vercel): las fotos ya se subieron a Storage por URL firmada y cada
+ *    `foto.ruta` apunta al objeto; el body es directamente el JSON del paseo.
  * No requiere sesión: los turistas no tienen cuenta en la app.
  */
 
@@ -64,44 +74,65 @@ export async function crearPaseoControlador(
   respuesta: Response
 ): Promise<void> {
   try {
-    const crudo =
-      typeof peticion.body?.datos === "string"
-        ? JSON.parse(peticion.body.datos)
-        : peticion.body?.datos;
+    const esMultipart = peticion.is("multipart/form-data");
+    const crudo = esMultipart
+      ? JSON.parse(peticion.body?.datos ?? "{}")
+      : (peticion.body ?? {});
     const datos = esquemaPaseo.parse(crudo);
-
-    const archivos = (
-      Array.isArray(peticion.files) ? peticion.files : []
-    ) as Express.Multer.File[];
-
-    if (archivos.length === 0) {
-      respuesta.status(400).json(error("Envía al menos una foto."));
-      return;
-    }
+    const archivos = esMultipart
+      ? ((Array.isArray(peticion.files) ? peticion.files : []) as Express.Multer.File[])
+      : [];
 
     const fotos: FotoPaseo[] = [];
-    for (let i = 0; i < archivos.length; i++) {
-      const archivo = archivos[i];
-      // La metadata viene en el mismo orden que los archivos.
-      const meta = datos.fotos[i];
-      // Recomprime la foto del celular (varios MB) para que la página pública
-      // cargue rápido. Si falla, se sube el archivo original sin romper nada.
-      const optimizada = await optimizarImagenBuffer(archivo.buffer);
-      const url = await subirImagen(
-        optimizada ?? {
-          originalname: archivo.originalname || `foto_${i + 1}.jpg`,
-          mimetype: archivo.mimetype,
-          buffer: archivo.buffer,
-        },
-        "paseos"
-      );
-      fotos.push({
-        url,
-        lat: meta?.lat ?? 0,
-        lng: meta?.lng ?? 0,
-        timestamp: meta?.timestamp,
-        descripcion: meta?.descripcion ?? undefined,
-      });
+
+    if (esMultipart) {
+      // Flujo clásico (servidor local): las fotos llegan como archivos.
+      if (archivos.length === 0) {
+        respuesta.status(400).json(error("Envía al menos una foto."));
+        return;
+      }
+      for (let i = 0; i < archivos.length; i++) {
+        const archivo = archivos[i];
+        // La metadata viene en el mismo orden que los archivos.
+        const meta = datos.fotos[i];
+        // Recomprime la foto del celular (varios MB) para que la página pública
+        // cargue rápido. Si falla, se sube el archivo original sin romper nada.
+        const optimizada = await optimizarImagenBuffer(archivo.buffer);
+        const url = await subirImagen(
+          optimizada ?? {
+            originalname: archivo.originalname || `foto_${i + 1}.jpg`,
+            mimetype: archivo.mimetype,
+            buffer: archivo.buffer,
+          },
+          "paseos"
+        );
+        fotos.push({
+          url,
+          lat: meta?.lat ?? 0,
+          lng: meta?.lng ?? 0,
+          timestamp: meta?.timestamp,
+          descripcion: meta?.descripcion ?? undefined,
+        });
+      }
+    } else {
+      // Flujo Vercel: las fotos ya se subieron a Storage por URL firmada
+      // (POST /preparar-subida) y cada `foto.ruta` apunta al objeto.
+      const fotoSinRuta = datos.fotos.findIndex((foto) => !foto.ruta);
+      if (fotoSinRuta >= 0) {
+        respuesta
+          .status(400)
+          .json(error(`Falta la ruta de la foto ${fotoSinRuta + 1}.`));
+        return;
+      }
+      for (const foto of datos.fotos) {
+        fotos.push({
+          url: urlPublicaDeRuta(foto.ruta as string),
+          lat: foto.lat,
+          lng: foto.lng,
+          timestamp: foto.timestamp,
+          descripcion: foto.descripcion ?? undefined,
+        });
+      }
     }
 
     const paseo = await servicioPaseos.crearPaseo({
@@ -123,6 +154,32 @@ export async function crearPaseoControlador(
       return;
     }
     respuesta.status(500).json(error("No se pudo publicar el paseo.", causa));
+  }
+}
+
+/**
+ * POST /api/paseos/preparar-subida
+ * JSON `{ cantidad: 1..5 }`. Devuelve una URL firmada por foto para que la
+ * app suba los archivos DIRECTAMENTE a Supabase Storage (PUT binario).
+ * El runtime serverless de Vercel no acepta archivos en multipart, así que
+ * las fotos ya no pasan por la API: solo la firma y el JSON final.
+ */
+export async function prepararSubidaPaseoControlador(
+  peticion: Request,
+  respuesta: Response
+): Promise<void> {
+  try {
+    const datos = esquemaPrepararSubida.parse(peticion.body ?? {});
+    const subidas = await firmarSubidasPaseo(datos.cantidad);
+    respuesta.status(200).json(exito({ subidas }, "URLs firmadas listas."));
+  } catch (causa) {
+    if (causa instanceof z.ZodError) {
+      respuesta
+        .status(400)
+        .json(error(causa.issues[0]?.message ?? "Solicitud inválida.", causa));
+      return;
+    }
+    respuesta.status(500).json(error("No se pudieron preparar las subidas.", causa));
   }
 }
 

@@ -391,21 +391,36 @@ export default function Informacion() {
                   <Ionicons name="chevron-forward" size={18} color="#8A8A8A" />
                 </Pressable>
                 <View style={styles.acciones}>
-                  <View
-                    style={[
-                      styles.chipEstado,
-                      descargado ? styles.chipDescargado : styles.chipPendiente,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.chipEstadoTexto,
-                        descargado && styles.chipEstadoTextoDescargado,
+                  {descargado ? (
+                    <View style={[styles.chipEstado, styles.chipDescargado]}>
+                      <Text
+                        style={[
+                          styles.chipEstadoTexto,
+                          styles.chipEstadoTextoDescargado,
+                        ]}
+                      >
+                        Descargado ✓
+                      </Text>
+                    </View>
+                  ) : (
+                    <Pressable
+                      style={({ pressed }) => [
+                        styles.chipEstado,
+                        styles.chipPendiente,
+                        styles.chipBoton,
+                        pressed && styles.chipBotonPresionado,
                       ]}
+                      onPress={() =>
+                        router.push({
+                          pathname: "/lugar/[id]",
+                          params: { id: item.id },
+                        })
+                      }
                     >
-                      {descargado ? "Descargado ✓" : "Descargar ↓"}
-                    </Text>
-                  </View>
+                      <Ionicons name="download-outline" size={14} color="#fff" />
+                      <Text style={styles.chipEstadoTexto}>Descargar</Text>
+                    </Pressable>
+                  )}
                   {descargado ? (
                     <Pressable
                       style={[
@@ -538,6 +553,8 @@ const styles = StyleSheet.create({
   chipEstado: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999 },
   chipDescargado: { backgroundColor: "#D6F0DC" },
   chipPendiente: { backgroundColor: "#1B4332" },
+  chipBoton: { flexDirection: "row", alignItems: "center", gap: 5 },
+  chipBotonPresionado: { opacity: 0.8 },
   chipEstadoTexto: { fontSize: 12, fontWeight: "700", color: "#fff" },
   chipEstadoTextoDescargado: { color: "#1B4332" },
   botonUsar: {

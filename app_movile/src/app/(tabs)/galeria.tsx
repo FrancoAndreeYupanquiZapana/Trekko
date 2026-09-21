@@ -8,6 +8,7 @@ import {
   Linking,
   Pressable,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   TextInput,
@@ -67,6 +68,15 @@ function formatearFechaHora(iso: string): string {
   } catch {
     return iso;
   }
+}
+
+/** Comparte la página pública del turista con las apps del teléfono. */
+function compartirPaginaPublica(url: string): void {
+  void Share.share({
+    message: `🌿 ¡Mira «El viaje» que armé con Trekko en la selva! ${url}`,
+  }).catch(() => {
+    // El sistema cerró el diálogo al tocar afuera: no es un error.
+  });
 }
 
 /**
@@ -331,9 +341,18 @@ export default function Galeria() {
                     : "Tu página pública está lista."}
               </Text>
               {urlPublica && (
-                <Pressable onPress={() => void Linking.openURL(urlPublica)}>
-                  <Text style={styles.syncEnlace}>Ver mi página pública →</Text>
-                </Pressable>
+                <View style={styles.syncEnlaces}>
+                  <Pressable onPress={() => void Linking.openURL(urlPublica)}>
+                    <Text style={styles.syncEnlace}>Ver mi página pública →</Text>
+                  </Pressable>
+                  <Pressable
+                    style={styles.syncCompartir}
+                    onPress={() => compartirPaginaPublica(urlPublica)}
+                  >
+                    <Ionicons name="share-social-outline" size={14} color="#2D6A4F" />
+                    <Text style={styles.syncEnlace}>Compartir</Text>
+                  </Pressable>
+                </View>
               )}
             </View>
             {pendientes > 0 && (
@@ -534,6 +553,13 @@ const styles = StyleSheet.create({
   syncTitulo: { fontSize: 13, fontWeight: "800", color: "#1B4332" },
   syncTexto: { fontSize: 12, color: "#4A5A50" },
   syncEnlace: { fontSize: 12, fontWeight: "700", color: "#2D6A4F", marginTop: 2 },
+  syncEnlaces: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    marginTop: 2,
+  },
+  syncCompartir: { flexDirection: "row", alignItems: "center", gap: 4 },
   syncBoton: {
     backgroundColor: "#1B4332",
     borderRadius: 999,

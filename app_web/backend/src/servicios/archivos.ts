@@ -91,3 +91,43 @@ export async function subirImagen(
     `${NOMBRE_BUCKET_IMAGENES}/${ruta}`
   );
 }
+
+/**
+ * Firma N rutas nuevas para subir las fotos DIRECTAMENTE a Supabase Storage
+ * desde la app (sin multipart por la API). La app hace un PUT binario a
+ * `urlFirma` y luego avisa al backend con las rutas ya subidas.
+ *
+ * Es necesario porque el backend corre en Vercel: su runtime rechaza los
+ * archivos en multipart con "unsupported FormDataPart".
+ */
+export async function firmarSubidasPaseo(
+  cantidad: number
+): Promise<{ indice: number; ruta: string; urlFirma: string }[]> {
+  const cliente = obtenerClienteSupabase();
+  await asegurarBucket();
+
+  const subidas: { indice: number; ruta: string; urlFirma: string }[] = [];
+  for (let indice = 0; indice < cantidad; indice++) {
+    const ruta = `paseos/${randomUUID()}.jpg`;
+    const { data, error } = await cliente.storage
+      .from(NOMBRE_BUCKET_IMAGENES)
+      .createSignedUploadUrl(ruta);
+    if (error || !data) {
+      throw new Error(
+        `No se pudo firmar la subida de la foto ${indice + 1}: ${
+          error?.message ?? "error desconocido"
+        }`
+      );
+    }
+    subidas.push({ indice, ruta, urlFirma: data.signedUrl });
+  }
+  return subidas;
+}
+
+/** URL pública de un objeto del bucket (para guardarla en el paseo). */
+export function urlPublicaDeRuta(ruta: string): string {
+  return (
+    `${entorno.supabaseUrl}/storage/v1/object/public/` +
+    `${NOMBRE_BUCKET_IMAGENES}/${ruta}`
+  );
+}

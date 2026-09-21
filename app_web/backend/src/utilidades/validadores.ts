@@ -212,12 +212,30 @@ const esquemaPuntoPaseo = z.object({
   timestamp: z.string().optional(),
 });
 
-/** Metadata de una foto (el archivo viaja aparte, en el multipart). */
+/** Metadata de una foto. En el flujo multipart el archivo viaja aparte, en
+ * el mismo orden; en el flujo para Vercel la foto ya se subió a Storage por
+ * URL firmada y aquí viaja su `ruta`. */
 const esquemaFotoPaseo = z.object({
   lat: z.number().min(-90).max(90),
   lng: z.number().min(-180).max(180),
   timestamp: z.string().optional(),
   descripcion: z.string().max(2000).nullable().optional(),
+  /** Ruta del objeto en Supabase Storage (flujo de URL firmada). */
+  ruta: z.string().trim().max(300).optional(),
+});
+
+/**
+ * Solicitud de URLs firmadas para subir las fotos DIRECTAMENTE a Supabase
+ * Storage desde la app. Vercel no acepta archivos en multipart
+ * ("unsupported FormDataPart"), por eso las fotos ya no pasan por la API:
+ * el backend solo firma las rutas y recibe el JSON final con ellas.
+ */
+export const esquemaPrepararSubida = z.object({
+  cantidad: z
+    .number()
+    .int()
+    .min(1, "Envía al menos una foto.")
+    .max(5, "Puedes enviar como máximo 5 fotos."),
 });
 
 /**

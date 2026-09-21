@@ -8,6 +8,7 @@ import {
   Alert,
   Pressable,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   View,
@@ -34,6 +35,24 @@ type Estado = "cargando" | "listo" | "error";
 /** Elige la imagen incrustada (offline) o la URL original (online). */
 function fuenteImagen(imagen: ImagenPaquete | null, url: string): string {
   return imagen?.datos ?? url;
+}
+
+/** Comparte un lugar con las apps del teléfono (mensaje + web si tiene). */
+function compartirLugar(
+  nombre: string,
+  web: string | null,
+  descripcion: string | null
+): void {
+  const texto = [
+    `Ven a conocer ${nombre} 🌿 (app Trekko)`,
+    descripcion?.trim() ? descripcion.trim().slice(0, 160) : null,
+    web?.trim() ? web.trim() : null,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+  void Share.share({ message: texto }).catch(() => {
+    // El usuario cerró el diálogo de compartir: no es un error.
+  });
 }
 
 export default function DetalleLugar() {
@@ -218,6 +237,19 @@ export default function DetalleLugar() {
               {ocupado ? "Descargando…" : "Actualizar copia"}
             </Text>
           </Pressable>
+          <Pressable
+            style={styles.botonCompartir}
+            onPress={() =>
+              compartirLugar(
+                local.empresa.nombre,
+                local.empresa.web ?? null,
+                local.empresa.descripcion ?? null
+              )
+            }
+          >
+            <Ionicons name="share-social-outline" size={16} color="#1B4332" />
+            <Text style={styles.botonCompartirTexto}>Compartir lugar</Text>
+          </Pressable>
           <Pressable style={styles.botonPeligro} onPress={confirmarEliminar}>
             <Text style={styles.botonPeligroTexto}>Eliminar descarga</Text>
           </Pressable>
@@ -263,6 +295,20 @@ export default function DetalleLugar() {
           <Text style={styles.botonPrimarioTexto}>
             {ocupado ? "Descargando…" : "Descargar para ver sin conexión ↓"}
           </Text>
+        </Pressable>
+
+        <Pressable
+          style={styles.botonCompartir}
+          onPress={() =>
+            compartirLugar(
+              empresa.nombre,
+              empresa.web ?? null,
+              empresa.descripcion ?? null
+            )
+          }
+        >
+          <Ionicons name="share-social-outline" size={16} color="#1B4332" />
+          <Text style={styles.botonCompartirTexto}>Compartir lugar</Text>
         </Pressable>
 
         <BotonesInfo
@@ -624,6 +670,20 @@ const styles = StyleSheet.create({
   },
   botonPrimarioTexto: { color: "#fff", fontWeight: "700", fontSize: 15 },
   botonInactivo: { opacity: 0.5 },
+  botonCompartir: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#1B4332",
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 999,
+    alignSelf: "center",
+  },
+  botonCompartirTexto: { color: "#1B4332", fontWeight: "700", fontSize: 14 },
   botonPeligro: {
     paddingHorizontal: 24,
     paddingVertical: 12,

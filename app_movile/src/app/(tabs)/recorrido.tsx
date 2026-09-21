@@ -206,15 +206,23 @@ export default function Recorrido() {
     [db]
   );
 
-  /** Callback del GPS: guarda SOLO cuando hubo avance real. */
+  /** Callback del GPS: guarda SOLO cuando hubo avance real y con precisión
+   * aceptable. Cuanto peor reporta el GPS, más avance real se exige antes de
+   * guardar un punto: así la línea no dibuja "dientes de sierra" ni los
+   * puntos se ven saltando por el temblor del GPS. */
   const alRecibirPosicion = useCallback(
     (loc: Location.LocationObject) => {
+      const acc = loc.coords.accuracy;
+      // GPS inaceptable (más de 80 m de error): se ignora el reporte entero.
+      // Ni el punto del mapa ni la línea saltan a un lugar absurdo.
+      if (acc != null && acc > 80) return;
       setPosicion(loc);
       // Geocercas: el aviso salta aunque no haya un recorrido en curso.
       revisarPuntosCercanos(loc.coords.latitude, loc.coords.longitude);
       if (activoIdRef.current == null) return;
-      const acc = loc.coords.accuracy;
-      if (acc != null && acc > 80) return; // precisión demasiado mala
+      // Para GUARDAR un punto se exige precisión real: antes se aceptaba
+      // hasta 80 m y por eso los puntos se movían mucho por el GPS.
+      if (acc != null && acc > 40) return;
       const ancla = anclaRef.current;
       const ultimo = ultimoRef.current;
       const desplazamiento = ancla
@@ -226,11 +234,14 @@ export default function Recorrido() {
         lng: loc.coords.longitude,
         ts: loc.timestamp,
       };
-      // Parado (el GPS tiembla unos metros): NO se guarda nada. Así no
-      // aparece "X m recorridos" sin que el turista haya caminado.
-      if (desplazamiento < 10) return;
+      // Umbral adaptativo: con precisión de 30 m se exige avanzar >= 24 m
+      // antes de fiar el punto; con 5 m basta con 15 m.
+      const umbralMin = Math.max(15, Math.round((acc ?? 6) * 0.8));
+      // Parado o apenas temblando el GPS: no se guarda nada. Así no aparece
+      // "X m recorridos" sin que el turista haya caminado.
+      if (desplazamiento < umbralMin) return;
       // Avanzó poco y hace poco: se espera al siguiente reporte del GPS.
-      if (desplazamiento < 15 && desdePunto < 25000) return;
+      if (desplazamiento < 25 && desdePunto < 25000) return;
       void guardarPuntoLocal(loc, null);
     },
     [guardarPuntoLocal, revisarPuntosCercanos]
@@ -663,8 +674,9 @@ export default function Recorrido() {
             <Text style={{ fontWeight: "700" }}>línea de recorrido</Text> (QuickCapture).
           </Text>
           <Text style={styles.comoFuncionaTexto}>
-            · Guarda un punto cuando avanzas ~15 m o pasan ~25 s, si la precisión
-            GPS es buena (así se cuida la batería).
+            · Guarda un punto solo cuando avanzas de verdad (≈15 m o más,
+            según la precisión GPS) para que la línea no se mueva sola y se
+            cuide la batería.
           </Text>
           <Text style={styles.comoFuncionaTexto}>
             · Cada foto queda marcada con su ubicación, fecha y tu descripción;

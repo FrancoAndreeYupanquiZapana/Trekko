@@ -24,6 +24,11 @@ export async function pedirApi<T>(ruta: string): Promise<T> {
  * Envía un `FormData` (multipart) a la API y devuelve los `datos` ya tipados.
  * Se usa para subir las fotos de la galería junto con su track GPS.
  * No se fija `Content-Type`: fetch agrega el boundary de multipart solo.
+ *
+ * OJO: el backend en producción corre en Vercel y su runtime rechaza archivos
+ * en multipart ("unsupported FormDataPart"). La app NO usa esta función para
+ * subir fotos a producción: las fotos van por URL firmada a Supabase Storage
+ * y solo el JSON viaja por la API (ver paseos.ts).
  */
 export async function enviarFormData<T>(
   ruta: string,
@@ -58,4 +63,42 @@ export async function enviarFormData<T>(
     );
   }
   return cuerpo.datos;
+}
+
+/**
+ * Envía un `POST` con cuerpo JSON a la API y devuelve los `datos` ya tipados.
+ * Es el transporte para producción (Vercel): nada de multipart, solo JSON.
+ */
+export async function enviarJson<T>(
+  ruta: string,
+  cuerpo: unknown,
+  timeoutMs = 45000
+): Promise<T> {
+  const control = new AbortController();
+  const temporizador = setTimeout(() => control.abort(), timeoutMs);
+
+  let respuesta: Response;
+  try {
+    respuesta = await fetch(`${URL_API}${ruta}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(cuerpo),
+      signal: control.signal,
+    });
+  } finally {
+    clearTimeout(temporizador);
+  }
+
+  const cuerpoRes = (await respuesta.json().catch(() => null)) as {
+    exito: boolean;
+    mensaje?: string;
+    datos: T;
+  } | null;
+
+  if (!respuesta.ok || !cuerpoRes?.exito) {
+    throw new Error(
+      cuerpoRes?.mensaje ?? `La API respondió ${respuesta.status} en ${ruta}`
+    );
+  }
+  return cuerpoRes.datos;
 }
