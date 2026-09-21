@@ -315,7 +315,10 @@ export interface AvisoPunto {
   tipo: string;
   titulo: string;
   descripcion: string;
-  /** Imagen incrustada del contenido (o del punto, si es nota). */
+  /**
+   * Imagen del aviso: gana la «imagen propia» del punto (si la subió la
+   * empresa); si no, la del contenido vinculado (afiche o especie).
+   */
   imagen: ImagenPaquete | null;
 }
 
@@ -386,7 +389,9 @@ export async function listarPuntosLocales(
           tipo: punto.tipo,
           titulo: vinculado.titulo || punto.titulo || "Punto de interés",
           descripcion: vinculado.descripcion || punto.descripcion || "",
-          imagen: vinculado.imagen ?? punto.imagen ?? null,
+          // La imagen «propia» del punto (subida por la empresa en el portal)
+          // gana sobre la del contenido vinculado.
+          imagen: punto.imagen ?? vinculado.imagen ?? null,
         });
       }
     } catch {

@@ -139,7 +139,9 @@ export function FormularioPunto({
         especieId: tipo === "ESPECIE" ? especieId : undefined,
         titulo: esNota ? titulo.trim() : undefined,
         descripcion: esNota ? descripcion.trim() || undefined : undefined,
-        imagenUrl: esNota ? imagenFinal || undefined : undefined,
+        // Imagen propia del aviso: vale para afiche, especie y nota. Si se
+        // sube, es la que muestra el popup del celular al acercarse.
+        imagenUrl: imagenFinal || undefined,
       };
 
       const punto = inicial
@@ -157,6 +159,9 @@ export function FormularioPunto({
 
   const estiloSelect =
     "h-11 rounded-lg border border-zinc-300 bg-white px-3 text-sm text-zinc-900 focus:outline focus:outline-2 focus:outline-offset-1 focus:outline-emerald-600";
+
+  const aficheElegido = afiches.find((afiche) => afiche.id === aficheId);
+  const especieElegida = especies.find((especie) => especie.id === especieId);
 
   return (
     <form
@@ -253,7 +258,7 @@ export function FormularioPunto({
       </div>
 
       {tipo === "AFICHE" && (
-        <label className="mt-4 flex flex-col gap-1.5">
+        <div className="mt-4 flex flex-col gap-1.5">
           <span className="text-sm font-medium text-zinc-700">Afiche</span>
           {afiches.length === 0 ? (
             <p className="text-sm text-amber-600">
@@ -273,11 +278,33 @@ export function FormularioPunto({
               ))}
             </select>
           )}
-        </label>
+
+          {aficheElegido?.imagenUrl && (
+            <div className="mt-2">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={aficheElegido.imagenUrl}
+                alt={`Imagen del afiche «${aficheElegido.titulo}»`}
+                className="h-44 w-full rounded-xl border border-zinc-200 bg-zinc-50 object-contain"
+              />
+              <p className="mt-1.5 text-xs text-zinc-400">
+                El aviso del celular mostrará esta imagen del afiche, salvo que
+                subas una «imagen propia» más abajo.
+              </p>
+            </div>
+          )}
+
+          {aficheElegido && !aficheElegido.imagenUrl && (
+            <p className="mt-1.5 text-xs text-amber-600">
+              Este afiche todavía no tiene imagen. Agrégale una en la sección
+              Afiches o sube una «imagen propia» más abajo.
+            </p>
+          )}
+        </div>
       )}
 
       {tipo === "ESPECIE" && (
-        <label className="mt-4 flex flex-col gap-1.5">
+        <div className="mt-4 flex flex-col gap-1.5">
           <span className="text-sm font-medium text-zinc-700">Especie</span>
           {especies.length === 0 ? (
             <p className="text-sm text-amber-600">
@@ -297,7 +324,29 @@ export function FormularioPunto({
               ))}
             </select>
           )}
-        </label>
+
+          {especieElegida?.imagenUrl && (
+            <div className="mt-2">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={especieElegida.imagenUrl}
+                alt={`Foto de ${especieElegida.nombreComun}`}
+                className="h-44 w-full rounded-xl border border-zinc-200 bg-zinc-50 object-contain"
+              />
+              <p className="mt-1.5 text-xs text-zinc-400">
+                Al acercarse, el aviso mostrará esta foto de la especie (la de
+                Flora y fauna), salvo que subas una «imagen propia» más abajo.
+              </p>
+            </div>
+          )}
+
+          {especieElegida && !especieElegida.imagenUrl && (
+            <p className="mt-1.5 text-xs text-amber-600">
+              Esta especie todavía no tiene foto. Agrégale una en Flora y fauna
+              o sube una «imagen propia» más abajo para el aviso.
+            </p>
+          )}
+        </div>
       )}
 
       {tipo === "NOTA" && (
@@ -327,52 +376,57 @@ export function FormularioPunto({
               onChange={(evento) => setDescripcion(evento.target.value)}
             />
           </label>
-
-          <div>
-            <span className="text-sm font-medium text-zinc-700">
-              Imagen (opcional)
-            </span>
-            <div className="mt-2 flex items-center gap-4">
-              {(vistaPrevia || imagenUrl) && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={vistaPrevia ?? imagenUrl}
-                  alt="Vista previa del punto"
-                  className="h-28 rounded-xl border border-zinc-200 bg-zinc-50 object-cover"
-                />
-              )}
-              <input
-                ref={entradaArchivo}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={(evento) =>
-                  elegirArchivo(evento.target.files?.[0] ?? null)
-                }
-              />
-              <div className="flex flex-col gap-2">
-                <Boton
-                  type="button"
-                  variante="secundario"
-                  onClick={() => entradaArchivo.current?.click()}
-                >
-                  <Icono tipo="imagen" className="size-5" />
-                  {vistaPrevia || imagenUrl ? "Cambiar imagen" : "Subir imagen"}
-                </Boton>
-                {(vistaPrevia || imagenUrl) && (
-                  <button
-                    type="button"
-                    onClick={quitarImagen}
-                    className="text-sm font-medium text-red-600 hover:underline"
-                  >
-                    Quitar imagen
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
         </div>
       )}
+
+      <div className="mt-4 grid gap-2">
+        <span className="text-sm font-medium text-zinc-700">
+          Imagen del aviso (opcional)
+        </span>
+        <p className="text-xs text-zinc-400">
+          {tipo === "AFICHE" || tipo === "ESPECIE"
+            ? "Si subes una imagen, será la que muestre el aviso del celular al acercarse (por ejemplo una foto del árbol o del cartel), en lugar de la del contenido vinculado."
+            : "Si subes una imagen, será la que muestre el aviso del celular al acercarse a este punto."}
+        </p>
+        <div className="mt-2 flex items-center gap-4">
+          {(vistaPrevia || imagenUrl) && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={vistaPrevia ?? imagenUrl}
+              alt="Vista previa del punto"
+              className="h-28 rounded-xl border border-zinc-200 bg-zinc-50 object-cover"
+            />
+          )}
+          <input
+            ref={entradaArchivo}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(evento) =>
+              elegirArchivo(evento.target.files?.[0] ?? null)
+            }
+          />
+          <div className="flex flex-col gap-2">
+            <Boton
+              type="button"
+              variante="secundario"
+              onClick={() => entradaArchivo.current?.click()}
+            >
+              <Icono tipo="imagen" className="size-5" />
+              {vistaPrevia || imagenUrl ? "Cambiar imagen" : "Subir imagen"}
+            </Boton>
+            {(vistaPrevia || imagenUrl) && (
+              <button
+                type="button"
+                onClick={quitarImagen}
+                className="text-sm font-medium text-red-600 hover:underline"
+              >
+                Quitar imagen
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
 
       <div className="mt-6 flex items-center gap-3">
         <Boton type="submit" cargando={cargando}>
